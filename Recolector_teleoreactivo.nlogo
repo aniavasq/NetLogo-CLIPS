@@ -1,15 +1,24 @@
-extensions [clips]
+extensions [clips] ; Uso de la extesnión NetLogo-CLIPS
 
 globals [
   _
-]
+] ; Variable global anónima
 
+; Se instancian dos tortugas, una tortuga representa el agente recolector
+; y la otra el entorno como un agente
 breed [recolector a-recolector]
 breed [entorno a-entorno]
 
+; El agente tortuga interactúa con el entorno reportando su ubicación y el estado
+; actual, es decir, si ve la lata o la tiene.
+; El entorno conoce si el depósito está vacío o si debe deterse el recolector.
+; El estado y posición (i,j) del recolector, así como la información del
+; estado del entorno son dadas por variables que pertenecen a las tortugas
+; recolector y entorno.
 recolector-own [ env-name i j accion ve_lata tiene_lata]
 entorno-own [ env-name ni nj deposito-vacio detener]
 
+; Este procedimiento es usado para destruir los entornos de CLIPS.
 to clips-destroy
   ask recolector [
     clips:clear env-name
@@ -21,6 +30,9 @@ to clips-destroy
   ]
 end
 
+; En esta sección se instancian las variables iniciales de la ubicación del
+; recolector en el entorno, también se crean los entornos de CLIPS para cada
+; uno de los agentes y se inyectan los hechos que representan dicha ubicación.
 to setup
   clear-all
   create-entorno 1 [
@@ -36,17 +48,28 @@ to setup
   reset-ticks
 
   ask recolector [
+    ; Se genera una posición inicial aleatoria para el recolector
+    ; dentro de la cuadrícula 3x3
     let i_0 ( 1 + random 3 )
     let j_0 ( 1 + random 3 )
     if (i_0 = 3) [ set j_0 ( 1 + random 2 ) ]
-;    let i_0 1
-;    let j_0 3
+
+    ; Aquí creamos un entorno de CLIPS con id. "recolector"
     set env-name "recolector"
     clips:create-env env-name
+    ; En el entorno creado cargamos el código de CLIPS que tiene
+    ; las reglas para el agente recolector
     set _ (clips:load env-name "recolector_teleoreactivo.clp")
     clips:reset env-name
+    ; Hacemos assert de los hechos con la ubicación del recolector
+    ; y la ubicación de la lata. Recordemos que la ubicación inicial del
+    ; recolector es generada de manera aleatoria dentro de NetLogo.
+    ; La ubicación de la lata es siempre (1,1)
     set _ (clips:assert-string env-name (word "(ubicacion (objeto robot) (x " i_0 ") (y " j_0 "))"))
     set _ (clips:assert-string env-name "(ubicacion (objeto lata) (x 1) (y 1))")
+
+    ; Las variables que representan la ubicación de la tortuga (i,j)
+    ; son instanciadas.
     set i i_0
     set j j_0
     show (word "i: " i)
@@ -56,10 +79,16 @@ to setup
   ]
 
   ask entorno [
+    ; Creamos un entorno de CLIPS con id. "entorno"
     set env-name "entorno"
     clips:create-env env-name
+    ; En el entorno creado cargamos el código de CLIPS que tiene
+    ; las reglas para el agente entorno en el fichero
     set _ (clips:load env-name "recolector_teleoreactivo.clp")
     clips:reset env-name
+    ; Hacemos assert de los hechos con la ubicación del recolector en el
+    ; entorno y la ubicación de la lata. Estos valores son obtenidos de las
+    ; variables i y j de la tortuga recolector
     set _ (clips:assert-string env-name (word "(ubicacion (objeto robot) (x " [i] of a-recolector 1 ") (y " [j] of a-recolector 1 "))"))
     set _ (clips:assert-string env-name "(ubicacion (objeto lata) (x 1) (y 1))")
 
@@ -67,41 +96,59 @@ to setup
   ]
 end
 
+; En esta sección del código se realiza la simulación de búsqueda de la lata
+; y luego la búsqueda del depósito.
 to go
 
   ask recolector [
     let i_t i
     let j_t j
 
+    ; El recolector verifica si tiene la lata
     set tiene_lata (clips:eval env-name "(any-factp ((?f tengo-lata)) TRUE)")
 
     show (word "tiene_lata:" tiene_lata)
 
+    ; Si el recolector no tiene la lata, entonces debe hacer focus
+    ; al módulo "BUSCAR"
     ifelse (tiene_lata = "FALSE") [
       if (accion = "FALSE") [
         set _ (clips:eval env-name "(focus BUSCAR)")
       ]
 
+      ; Con focus en el módulo "BUSCAR" se ejecuta el comando run
+      ; en 1 paso.
       (clips:run env-name 1)
 
       ask entorno [
+        ; Actualizamos el estado "detener" del entorno
         set detener (clips:get-slot-value [env-name] of a-recolector 1 "accion" "tipo" "?f" "(eq ?f:tipo detener)")
       ]
     ] [
+      ; Si el recolector tiene la lata, y el depósito está vacío
+      ; debe de ir hacia el depósito
       ask entorno [
+        ; El entorno verifica si el depósito está vacío
         set deposito-vacio (clips:eval [env-name] of a-recolector 1 "(any-factp ((?f deposito-vacio)) TRUE)")
 
+        ; Si el depósito está vacío
         if (deposito-vacio != "FALSE") [
           if ([accion] of a-recolector 1 = "FALSE") [
+            ; Si el recolector no está realizando una acción, entonces
+            ; se hace focus del módulo "IR-DEPOSITO"
             set _ (clips:eval [env-name] of a-recolector 1 "(focus IR-DEPOSITO)")
           ]
 
+          ; Se ejecuta el comando run en 1 paso del recolector
           (clips:run [env-name] of a-recolector 1 1)
 
           show (word "detener:" detener)
         ]
       ]
     ]
+
+    ; Se obtiene la acción y la ubicación del agente recolector, producto
+    ; de la ejecución de las reglas en CLIPS
     set accion (clips:get-slot-value env-name "accion" "tipo" "?f" "TRUE")
     set i (read-from-string (clips:get-slot-value env-name "ubicacion" "x" "?f" "(eq ?f:objeto robot)"))
     set j (read-from-string (clips:get-slot-value env-name "ubicacion" "y" "?f" "(eq ?f:objeto robot)"))
@@ -111,51 +158,14 @@ to go
     show (word "accion: " accion)
   ]
 
-;  ask entorno [
-;    let i_t [i] of a-recolector 1
-;    let j_t [j] of a-recolector 1
-;
-;    set _ (clips:assert-string env-name (word "(nuevo-lugar " i_t " " j_t ")"))
-;    if ([accion] of a-recolector 1 != "FALSE") [
-;      set _ (clips:assert-string env-name (word "(accion (tipo " [accion] of a-recolector 1 "))"))
-;    ]
-;    set ve_lata (clips:eval env-name "(any-factp ((?f veo-lata)) TRUE)")
-;    show (word "ve_lata:" ve_lata)
-;    set tiene_lata (clips:eval [env-name] of a-recolector 1 "(any-factp ((?f tengo-lata)) TRUE)")
-;    show (word "tiene_lata:" tiene_lata)
-;
-;    (clips:run env-name 1)
-;    set ni (read-from-string (clips:get-slot-value env-name "ubicacion" "pi" "?f" "(eq ?f:objeto lugar)"))
-;    set nj (read-from-string (clips:get-slot-value env-name "ubicacion" "pj" "?f" "(eq ?f:objeto lugar)"))
-;
-;
-;    ask recolector [
-;      set _ (clips:assert-string env-name (word "(nuevo-lugar " [ni] of a-entorno 0 " " [nj] of a-entorno 0 ")"))
-;
-;      if ([ve_lata] of a-entorno 0 != "FALSE") [
-;        set _ (clips:assert-string env-name "(veo-lata)")
-;      ]
-;      if ([tiene_lata] of a-entorno 0 != "FALSE") [
-;        set _ (clips:assert-string env-name "(tengo-lata)")
-;        set color green
-;      ]
-;
-;      (clips:run env-name 3)
-;      set accion (clips:get-slot-value env-name "accion" "tipo" "?f" "TRUE")
-;      set i (read-from-string (clips:get-slot-value env-name "ubicacion" "x" "?f" "(eq ?f:objeto lugar)"))
-;      set j (read-from-string (clips:get-slot-value env-name "ubicacion" "y" "?f" "(eq ?f:objeto lugar)"))
-;      show (word "i: " i)
-;      show (word "j: " j)
-;      show (word "accion: " accion)
-;    ]
-;
-;    set detener (clips:get-slot-value env-name "accion" "tipo" "?f" "(eq ?f:tipo detener)")
-;  ]
-
+  ; Si el estado del entorno es el de detener, se para la simulación
+  ; y se destruyen los entornos de CLIPS
   if ([detener] of a-entorno 0 != "FALSE") [
     stop
     clips-destroy
   ]
+
+  ; esto se realiza en cada tick
   tick
 end
 @#$#@#$#@
