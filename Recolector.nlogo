@@ -6,8 +6,10 @@ globals [
 
 ; Se instancian dos tortugas, una tortuga representa el agente recolector
 ; y la otra el entorno como un agente
-breed [recolector a-recolector]
+breed [lata a-lata]
+breed [deposito a-deposito]
 breed [entorno a-entorno]
+breed [recolector a-recolector]
 
 ; El agente tortuga interactúa con el entorno reportando su ubicación y la
 ; acción que quiere realizar. El entorno conoce el estado actual, es decir,
@@ -38,12 +40,23 @@ to setup
   create-entorno 1 [
     set shape "circle"
     set heading 0
-    set color white
+    set color black
   ]
   create-recolector 1 [
     set shape "circle"
     set heading 0
     set color white
+  ]
+  create-lata 1 [
+    set shape "square"
+    set heading 0
+    set color red
+  ]
+  create-deposito 1 [
+    set shape "triangle"
+    set heading 0
+    set color yellow
+    setxy 3 -3
   ]
   reset-ticks
 
@@ -75,6 +88,8 @@ to setup
     set j j_0
     show (word "i: " i)
     show (word "j: " j)
+    let nycor -1 * i
+    setxy j nycor
 
     ; El valor inicial de la variable "accion" es FALSE por defecto
     set accion "FALSE"
@@ -95,6 +110,9 @@ to setup
     ; variables i y j de la tortuga recolector
     set _ (clips:assert-string env-name (word "(ubicacion (objeto robot) (i " [i] of a-recolector 1 ") (j " [j] of a-recolector 1 "))"))
     set _ (clips:assert-string env-name "(ubicacion (objeto lata) (i 1) (j 1))")
+    ask lata [
+      setxy 1 -1
+    ]
   ]
 end
 
@@ -143,6 +161,9 @@ to go
       if ([tiene_lata] of a-entorno 0 != "FALSE") [
         set _ (clips:assert-string env-name "(tengo-lata)")
         set color green
+        ask lata [
+          set color black
+        ]
       ]
 
       ; Se ejecuta el comando run en 3 pasos ya que debe de actulizarse
@@ -158,11 +179,19 @@ to go
       show (word "i: " i)
       show (word "j: " j)
       show (word "accion: " accion)
+      let nycor -1 * i
+      setxy j nycor
     ]
 
     ; Si el agente entorno indica que el estado es "detener" se actualiza
     ; la variable de la tortuga
     set detener (clips:get-slot-value env-name "accion" "tipo" "?f" "(eq ?f:tipo detener)")
+
+    if (detener != "FALSE") [
+      ask recolector[
+        set color white
+      ]
+    ]
   ]
 
   ; Si el estado del entorno es el de detener, se para la simulación
@@ -579,7 +608,7 @@ false
 Polygon -7500403 true true 270 75 225 30 30 225 75 270
 Polygon -7500403 true true 30 75 75 30 270 225 225 270
 @#$#@#$#@
-NetLogo 6.1.1
+NetLogo 6.3.0
 @#$#@#$#@
 @#$#@#$#@
 @#$#@#$#@

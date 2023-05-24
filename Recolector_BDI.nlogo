@@ -8,6 +8,8 @@ globals [
 ; esta implementación es la más intuitiva, ya que el conocimiento
 ; del agente tortuga está dado por los hechos en CLIPS
 ; y su comportamiento se da a partir de las reglas cargadas
+breed [lata a-lata]
+breed [deposito a-deposito]
 breed [recolector a-recolector]
 
 ; El agente tortuga debe conocer su ubicación y el estado
@@ -31,6 +33,18 @@ to setup
     set shape "circle"
     set heading 0
     set color white
+  ]
+  create-lata 1 [
+    set shape "square"
+    set heading 0
+    set color red
+    setxy 2 -2
+  ]
+  create-deposito 1 [
+    set shape "triangle"
+    set heading 0
+    set color yellow
+    setxy 3 -3
   ]
   reset-ticks
 
@@ -56,6 +70,8 @@ to setup
 
     show (word "i: " i)
     show (word "j: " j)
+    let nycor -1 * i
+    setxy j nycor
 
     ; Al inicio, el recolector no genera ninguna acción y
     ; aún no se debe detener
@@ -82,9 +98,22 @@ to go
     show (word "i: " i)
     show (word "j: " j)
     show (word "accion: " accion)
+    let nycor -1 * i
+    setxy j nycor
+
+    if ([accion] of a-recolector 0 = "coger-lata") [
+      set color green
+      ask lata [
+        set color black
+      ]
+    ]
 
     ; Actualizamos el estado "detener"
     set detener (clips:get-slot-value env-name "accion" "tipo" "?f" "(eq ?f:tipo detener)")
+
+    if ([detener] of a-recolector 0 != "FALSE") [
+      set color white
+    ]
   ]
 
   ; Si el agente desea detenerse, se para la simulación
@@ -499,7 +528,7 @@ false
 Polygon -7500403 true true 270 75 225 30 30 225 75 270
 Polygon -7500403 true true 30 75 75 30 270 225 225 270
 @#$#@#$#@
-NetLogo 6.1.1
+NetLogo 6.3.0
 @#$#@#$#@
 @#$#@#$#@
 @#$#@#$#@
